@@ -1,0 +1,13 @@
+Parameters:
+  TargetEnvironment:
+    Description: 'Examples can be dev, test or prod'
+    Type: 'String'
+
+Resources:
+  IdentityApiDomainMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties: 
+      BasePath: identity
+      DomainName: {'Fn::ImportValue': !Sub 'focusmark-${TargetEnvironment}-apigw-customdomain'}
+      RestApiId: {'Fn::ImportValue': !Sub 'focusmark-${TargetEnvironment}-apigw-identityapi'}
+      Stage: !Ref TargetEnvironment

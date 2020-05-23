@@ -1,0 +1,21 @@
+version: 0.2
+
+env:
+    variables:
+        sns_create_workbook_topic: arn:aws:sns:us-east-1:012345678910:test-sns
+
+phases:
+    install:
+        commands:
+            - npm install backend/api-workbook/http-post/ --prefix backend/api-workbook/http-post/
+            - npm install backend/api-workbook/http-get/ --prefix backend/api-workbook/http-get/
+            - npm install backend/api-workbook/event-processor/ --prefix backend/api-workbook/event-processor/
+            - npm install backend/api-workbook/local-seeder/ --prefix backend/api-workbook/local-seeder/
+    build:
+        commands:
+            - sam build WorkbookPostLambda --template backend/api-workbook/template.yaml --manifest backend/api-workbook/http-post/package.json --build-dir backend/api-workbook/dist
+            - sam build WorkbookSubscriberLambda --template backend/api-workbook/template.yaml --manifest backend/api-workbook/event-processor/package.json --build-dir backend/api-workbook/dist
+    post_build:
+        commands:
+            - npm test --prefix backend/api-workbook/http-post/
+            - npm test --prefix backend/api-workbook/event-processor/

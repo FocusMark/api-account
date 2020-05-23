@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Customer Identity Resource Micro-service for FocusMark REST API'
+  
+Globals:
+  Function:
+    Timeout: 10
+
+Parameters:
+  TargetEnvironment:
+    Description: 'Examples can be dev, test or prod'
+    Type: 'String'
+
+Resources:
+  IdentityApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref TargetEnvironment
+      Name: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'apigw', 'identity' ] ]
+
+  IdentityUserPostLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: 'Allows HTTP POST to Identity for user sign up'
+      RoleName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'role', 'identity_user_post' ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'policy', 'identity_user_post' ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'xray:CreateGroup'
+                  - 'xray:CreateSamplingRule'
+                Resource: 
+                  - 'arn:aws:xray:*:*:group/*/*'
+                  - 'arn:aws:xray:*:*:sampling-rule/*'
+              - Effect: Allow
+                Action:
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:PutTraceSegments'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:SignUp'
+                Resource: {'Fn::ImportValue': !Sub 'focusmark-${TargetEnvironment}-userpool'}
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  IdentityUserPostLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: 'lambda/'
+      Environment:
+        Variables:
+          deployed_environment: !Ref TargetEnvironment
+      FunctionName: !Join [ "-", [ 'focusmark', !Ref TargetEnvironment, 'lambda', 'identity_user_post' ] ]
+      Handler: lambda-user-post.handler
+      Runtime: nodejs12.x
+      Tracing: Active
+      Role: !GetAtt IdentityUserPostLambdaRole.Arn
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Path: /user
+            Method: post
+            RestApiId:
+              Ref: IdentityApi
+
+Outputs:
+  UserEndpoint:
+    Description: "API endpoint for User resources"
+    Value: !Sub "https://${IdentityApi}.execute-api.${AWS::Region}.amazonaws.com/${TargetEnvironment}/user"
+  IdentityApiId:
+    Description: "ID of the Identity API resource"
+    Value: !Ref IdentityApi
+    Export:
+      Name: !Sub 'focusmark-${TargetEnvironment}-apigw-identityapi'
